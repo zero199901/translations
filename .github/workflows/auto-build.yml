@@ -104,6 +104,8 @@ jobs:
       - name: Create GitHub Release
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           gh auth status
           $ws = $env:GITHUB_WORKSPACE
