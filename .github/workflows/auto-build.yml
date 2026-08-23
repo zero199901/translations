@@ -1,0 +1,117 @@
+name: Auto Build x64dbg dev
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: "构建后自动创建 GitHub Release"
+        type: boolean
+        default: true
+  schedule:
+    - cron: "0 20 * * 0"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, x86]
+    steps:
+      - name: Checkout x64dbg source
+        uses: actions/checkout@v6
+        with:
+          repository: x64dbg/x64dbg
+          ref: development
+          path: x64dbg
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: MSVC environment
+        uses: TheMrMilchmann/setup-msvc-dev@v4
+        with:
+          arch: ${{ matrix.arch }}
+
+      - name: Configure
+        shell: pwsh
+        working-directory: x64dbg
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_UNITY_BUILD=ON -DCMAKE_UNITY_BUILD_BATCH_SIZE=6
+
+      - name: Build
+        shell: pwsh
+        working-directory: x64dbg
+        run: cmake --build build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: bin-${{ matrix.arch }}
+          path: x64dbg/bin/${{ matrix.arch }}
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 3
+
+  package:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+        with:
+          path: repo
+          fetch-depth: 1
+
+      - name: Checkout x64dbg source
+        uses: actions/checkout@v6
+        with:
+          repository: x64dbg/x64dbg
+          ref: development
+          path: x64dbg
+          fetch-depth: 1
+
+      - name: Download x64 build
+        uses: actions/download-artifact@v8
+        with:
+          name: bin-x64
+          path: bin/x64
+
+      - name: Download x86 build
+        uses: actions/download-artifact@v8
+        with:
+          name: bin-x86
+          path: bin/x32
+
+      - name: Package
+        shell: pwsh
+        run: ./repo/scripts/pack-gh.ps1 -SourceBin (Join-Path $PWD "bin") -SourceRoot (Join-Path $PWD "x64dbg") -Translations (Join-Path $PWD "repo/translations") -OutDir (Join-Path $PWD "out")
+
+      - name: Upload snapshot
+        uses: actions/upload-artifact@v7
+        with:
+          name: snapshot
+          path: out/snapshot_*.zip
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: ${{ github.event_name == "workflow_dispatch" && inputs.create_release }}
+        shell: pwsh
+        run: |
+          $commit = git -C x64dbg rev-parse HEAD
+          $zip = Get-ChildItem out -Filter "snapshot_*.zip" | Select-Object -First 1
+          $notes = "x64dbg development 分支自动构建`n`n- 源码提交: $commit`n- 构建时间: " + (Get-Date -Format "yyyy-MM-dd HH:mm") + " (UTC)`n- 包含 x64 + x32 + 40 语言翻译"
+          $n = 0
+          do {
+            $tag = "dev-" + (Get-Date -Format "yyyy.MM.dd") + $(if ($n -gt 0) { "-$n" } else { "" })
+            gh release create $tag $zip.FullName --repo $env:GITHUB_REPOSITORY --title "x64dbg dev auto-build" --notes $notes 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) { Write-Host ("Release created: " + $tag); break }
+            $n++
+          } while ($n -lt 10)
