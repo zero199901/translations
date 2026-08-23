@@ -102,7 +102,7 @@ jobs:
           retention-days: 30
 
       - name: Create GitHub Release
-        if: ${{ github.event_name == "workflow_dispatch" && inputs.create_release }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
         shell: pwsh
         run: |
           $commit = git -C x64dbg rev-parse HEAD
