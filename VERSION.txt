@@ -1,0 +1,9 @@
+x64dbg dev 构建包版本信息
+====================================
+构建日期    : 2026-08-23
+源码提交    : cd7aad9b617d2c28f94665b87228dbae07d115da (官方 development 分支)
+翻译来源    : x64dbg/translations 最新 qm.zip (40 种语言, 含中文)
+构建包      : packages/x64dbg-dev_snapshot_2026-08-23_1628.zip
+SHA256      : E72902E0C2DCA339D825D2D671BD182C8BB23301BFECA98019FDEA87C57467CB
+结构        : release/x64 + release/x32 + release/translations + pluginsdk + commithash.txt
+说明        : 官方 development 分支本地编译 Release 版, 跳过 x96dbg launcher (ATL 未装), 不影响使用
