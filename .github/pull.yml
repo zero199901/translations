@@ -1,0 +1,6 @@
+version: '1'
+rules:
+- base: master
+  upstream: x64dbg:master
+  mergeMethod: merge
+  mergeUnstable: false
